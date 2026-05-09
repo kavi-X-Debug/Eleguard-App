@@ -1,0 +1,26 @@
+node_modules/
+.expo/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Expo
+.expo-shared/
+web-build/
+
+# Android
+android/build/
+android/app/build/
+android/.gradle/
+*.iml
+*.apk
+*.aar
+
+# iOS
+ios/build/
+ios/Pods/
+ios/DerivedData/
+
+# Env
+.env*

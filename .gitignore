@@ -4,6 +4,24 @@ dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
+
+# Local / editor / agent tooling
+.env.local
+.env.*.local
+*.local
+.cursor/
+mcps/
+agent-tools/
+
+# Build artifacts & diagnostics (keep out of commits)
+build_logs*
+build_output.txt
+build_info.json
+
+# OS junk
+.DS_Store
+Thumbs.db
 
 # Expo
 .expo-shared/
@@ -13,8 +31,11 @@ web-build/
 android/build/
 android/app/build/
 android/.gradle/
+android/local.properties
+.idea/
 *.iml
 *.apk
+*.aab
 *.aar
 
 # iOS
@@ -24,3 +45,6 @@ ios/DerivedData/
 
 # Env
 .env*
+
+# Firebase Cloud Functions (dependencies)
+functions/node_modules/

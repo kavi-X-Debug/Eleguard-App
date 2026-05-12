@@ -5,6 +5,7 @@ import { COLORS } from '../constants/colors';
 import { TYPOGRAPHY } from '../constants/typography';
 import SeverityBadge from './SeverityBadge';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { formatAmplitudeVs, getAlertAmplitude } from '../utils/sensorAlertMetrics';
 
 export default function AlertCard({ alert, onPress, index = 0 }) {
   const slideAnim = useRef(new Animated.Value(60)).current;
@@ -106,7 +107,7 @@ export default function AlertCard({ alert, onPress, index = 0 }) {
             <View style={styles.rightCol}>
               <Text style={styles.amplitudeLabel}>Amplitude</Text>
               <Text style={[styles.amplitudeValue, { color: getBorderColor() }]}>
-                {alert.amplitude?.toFixed(1) || '0.0'}
+                {formatAmplitudeVs(getAlertAmplitude(alert))}
               </Text>
             </View>
           </View>

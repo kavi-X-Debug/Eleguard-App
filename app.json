@@ -16,13 +16,36 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0e141a"
       },
-      "package": "com.eleguard.app",
+      "package": "com.kavishka.eleguard",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.WAKE_LOCK",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.VIBRATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "POST_NOTIFICATIONS"
+      ],
+      "intentFilters": [
+        {
+          "action": "android.intent.action.VIEW",
+          "data": [
+            {
+              "scheme": "eleguard"
+            }
+          ],
+          "category": [
+            "android.intent.category.DEFAULT",
+            "android.intent.category.BROWSABLE"
+          ]
+        }
       ]
     },
     "web": {
@@ -30,7 +53,16 @@
     },
     "plugins": [
       "expo-font",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#4CAF50",
+          "sounds": [],
+          "androidMode": "default",
+          "androidCollapsedTitle": "🐘 EleGuard Alert"
+        }
+      ],
       [
         "expo-audio",
         {
@@ -41,8 +73,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "92630b89-f585-4351-8e6a-ce12a5934f52"
+        "projectId": "4f97d814-53ea-4e10-88d1-fb081a28bbdb"
       }
-    }
+    },
+    "owner": "kaviii"
   }
 }

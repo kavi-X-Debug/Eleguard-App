@@ -140,11 +140,6 @@ export default function DefendingSystemScreen({ navigation }) {
         </View>
       )}
 
-      {!isAdmin && !error && (
-        <View style={styles.farmerBanner}>
-          <Text style={styles.farmerBannerText}>👁️ View Only — Admin controls only</Text>
-        </View>
-      )}
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.pageHeader}>
@@ -306,15 +301,6 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.labelLG,
     color: '#FFF',
     fontSize: 12,
-  },
-  farmerBanner: {
-    backgroundColor: COLORS.severity_MEDIUM,
-    padding: 12,
-    alignItems: 'center',
-  },
-  farmerBannerText: {
-    ...TYPOGRAPHY.labelLG,
-    color: '#000',
   },
   scrollContent: {
     padding: 16,

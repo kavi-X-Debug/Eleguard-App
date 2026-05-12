@@ -27,7 +27,6 @@ class AudioService {
       await setAudioModeAsync({
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,
-        shouldDuckAndroid: true,
       });
       console.log('Audio Mode set successfully');
     } catch (e) {
@@ -35,8 +34,16 @@ class AudioService {
     }
   }
 
-  async playAlarm(soundName, loop = false) {
-    console.log(`Attempting to play alarm: ${soundName} (loop: ${loop})`);
+  /**
+   * @param {string} soundName
+   * @param {boolean|{ repeatUntilStop?: boolean, loop?: boolean }} [loopOrOptions=false] — If true or `{ repeatUntilStop: true }`, loops until `stopAlarm()`.
+   */
+  async playAlarm(soundName, loopOrOptions = false) {
+    const repeatUntilStop =
+      typeof loopOrOptions === 'object' && loopOrOptions !== null
+        ? !!(loopOrOptions.repeatUntilStop ?? loopOrOptions.loop)
+        : !!loopOrOptions;
+    console.log(`Attempting to play alarm: ${soundName} (repeatUntilStop: ${repeatUntilStop})`);
     try {
       if (this.player) {
         console.log('Releasing previous player');
@@ -51,7 +58,7 @@ class AudioService {
       
       console.log('Creating new player with asset:', asset);
       this.player = createAudioPlayer(asset);
-      this.player.loop = loop;
+      this.player.loop = repeatUntilStop;
       this.player.volume = 1.0;
       
       // Some versions of expo-audio might need a tiny tick to be ready
@@ -62,9 +69,10 @@ class AudioService {
         }
       }, 100);
 
-      this.player.addListener('playbackStatusUpdate', (status) => {
-        if (status.didJustFinish && !status.isLooping) {
+      const subscription = this.player.addListener('playbackStatusUpdate', (status) => {
+        if (status.didJustFinish && !repeatUntilStop) {
           console.log('Playback finished, releasing player');
+          subscription.remove();
           this.player?.release();
           this.player = null;
         }

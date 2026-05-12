@@ -12,7 +12,7 @@ export const useFirebaseSensors = () => {
   const { user } = useAuth();
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !user.emailVerified) {
       setSensors({});
       setLoading(false);
       return;

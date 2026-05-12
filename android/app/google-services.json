@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "1034137410813",
+    "firebase_url": "https://studio-9916723566-5e1ef-default-rtdb.firebaseio.com",
+    "project_id": "studio-9916723566-5e1ef",
+    "storage_bucket": "studio-9916723566-5e1ef.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1034137410813:android:9334388a9d0c043694f294",
+        "android_client_info": {
+          "package_name": "com.kavishka.eleguard"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCYG5MvU2NIgvKVgoSqSTYntfFpYLuoLHU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

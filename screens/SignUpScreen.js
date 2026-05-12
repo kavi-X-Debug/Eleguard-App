@@ -1,6 +1,18 @@
 // FILE: screens/SignUpScreen.js
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  StyleSheet, 
+  ActivityIndicator, 
+  ScrollView, 
+  Alert, 
+  Animated, 
+  KeyboardAvoidingView, 
+  Platform 
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createUserWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
@@ -13,23 +25,69 @@ import { sendWelcomeEmail } from '../services/emailService';
 export default function SignUpScreen({ navigation }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState('FARMER'); // Default role
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [role, setRole] = useState('FARMER');
   const [adminCode, setAdminCode] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
+
   const ADMIN_SECRET = 'ELEG_ADMIN_2026';
 
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
+
+  const handlePressIn = () => {
+    Animated.spring(buttonScale, { toValue: 0.95, useNativeDriver: true }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(buttonScale, { toValue: 1, useNativeDriver: true }).start();
+  };
+
   const handleSignUp = async () => {
-    if (!name || !email || !password || !confirmPassword) {
+    if (!name || !email || !phone || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
+    
+    // Phone validation (10 digits)
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone)) {
+      Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number.');
+      return;
+    }
+
     if (password !== confirmPassword) {
       Alert.alert('Error', 'Passwords do not match');
       return;
     }
+    
+    if (password.length < 6) {
+      Alert.alert('Weak Password', 'Password should be at least 6 characters long.');
+      return;
+    }
+
     if (role === 'ADMIN' && adminCode !== ADMIN_SECRET) {
       Alert.alert('Invalid Passcode', 'The admin secret code is incorrect.');
       return;
@@ -47,12 +105,13 @@ export default function SignUpScreen({ navigation }) {
       await set(ref(db, `users/${user.uid}`), {
         name,
         email,
-        role: role, // Use the selected role (already validated)
+        phone,
+        role: role,
         createdAt: new Date().toISOString()
       });
 
-      // Send welcome email via Resend
-      await sendWelcomeEmail(email, name);
+      // Send welcome email
+      await sendWelcomeEmail(email, name, role);
 
       // Sign out immediately to force verification check on login
       await signOut(auth);
@@ -70,186 +129,246 @@ export default function SignUpScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
-      <ScrollView contentContainerStyle={styles.scrollContainer} bounces={false}>
-      <View style={styles.glowTopRight} />
-      <View style={styles.glowBottomLeft} />
-
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.iconCircle}>
-            <MaterialCommunityIcons name="shield-check" size={32} color={COLORS.primary} />
-          </View>
-          <Text style={styles.headline}>Create Account</Text>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.inputContainer}>
-            <MaterialCommunityIcons name="account-outline" size={24} color={COLORS.outline} style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Full Name"
-              placeholderTextColor={COLORS.outline}
-              value={name}
-              onChangeText={setName}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <MaterialCommunityIcons name="email-outline" size={24} color={COLORS.outline} style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Email Address"
-              placeholderTextColor={COLORS.outline}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-
-          <View style={styles.row}>
-            <View style={[styles.inputContainer, styles.halfInput]}>
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor={COLORS.outline}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.glowTop} />
+          
+          <Animated.View style={[styles.innerContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+            <View style={styles.header}>
+              <View style={styles.iconContainer}>
+                <MaterialCommunityIcons name="shield-account" size={40} color={COLORS.primary} />
+              </View>
+              <Text style={styles.title}>Join EleGuard</Text>
+              <Text style={styles.subtitle}>Protecting what matters most</Text>
             </View>
-            <View style={[styles.inputContainer, styles.halfInput]}>
-              <TextInput
-                style={styles.input}
-                placeholder="Confirm"
-                placeholderTextColor={COLORS.outline}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-              />
+
+            <View style={styles.card}>
+              {/* Name Input */}
+              <View style={styles.inputWrapper}>
+                <MaterialCommunityIcons name="account-outline" size={22} color={COLORS.outline} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Full Name"
+                  placeholderTextColor={COLORS.outline}
+                  value={name}
+                  onChangeText={setName}
+                />
+              </View>
+
+              {/* Email Input */}
+              <View style={styles.inputWrapper}>
+                <MaterialCommunityIcons name="email-outline" size={22} color={COLORS.outline} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email Address"
+                  placeholderTextColor={COLORS.outline}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              {/* Phone Input */}
+              <View style={styles.inputWrapper}>
+                <MaterialCommunityIcons name="phone-outline" size={22} color={COLORS.outline} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Phone Number (10 digits)"
+                  placeholderTextColor={COLORS.outline}
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+              </View>
+
+              {/* Password Row */}
+              <View style={styles.row}>
+                <View style={[styles.inputWrapper, { flex: 1, marginRight: 8 }]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Password"
+                    placeholderTextColor={COLORS.outline}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                  />
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                    <MaterialCommunityIcons 
+                      name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                      size={20} 
+                      color={COLORS.outline} 
+                    />
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={[styles.inputWrapper, { flex: 1 }]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Confirm"
+                    placeholderTextColor={COLORS.outline}
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showConfirmPassword}
+                  />
+                  <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                    <MaterialCommunityIcons 
+                      name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} 
+                      size={20} 
+                      color={COLORS.outline} 
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Role Selection */}
+              <View style={styles.roleContainer}>
+                <TouchableOpacity 
+                  style={[styles.roleBtn, role === 'FARMER' && styles.roleBtnActive]} 
+                  onPress={() => setRole('FARMER')}
+                >
+                  <Text style={[styles.roleBtnText, role === 'FARMER' && styles.roleBtnTextActive]}>Farmer</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.roleBtn, role === 'ADMIN' && styles.roleBtnActive]} 
+                  onPress={() => setRole('ADMIN')}
+                >
+                  <Text style={[styles.roleBtnText, role === 'ADMIN' && styles.roleBtnTextActive]}>Admin</Text>
+                </TouchableOpacity>
+              </View>
+
+              {role === 'ADMIN' && (
+                <Animated.View style={styles.inputWrapper}>
+                  <MaterialCommunityIcons name="shield-lock-outline" size={22} color={COLORS.primary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Admin Passcode"
+                    placeholderTextColor={COLORS.outline}
+                    value={adminCode}
+                    onChangeText={setAdminCode}
+                    secureTextEntry
+                  />
+                </Animated.View>
+              )}
+
+              {/* Submit Button */}
+              <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+                <TouchableOpacity 
+                  style={styles.submitBtn} 
+                  onPress={handleSignUp}
+                  onPressIn={handlePressIn}
+                  onPressOut={handlePressOut}
+                  disabled={loading}
+                  activeOpacity={0.9}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={COLORS.onPrimary} />
+                  ) : (
+                    <Text style={styles.submitBtnText}>Create Account</Text>
+                  )}
+                </TouchableOpacity>
+              </Animated.View>
             </View>
-          </View>
 
-          <View style={styles.roleContainer}>
-            <TouchableOpacity 
-              style={[styles.roleButton, role === 'FARMER' && styles.roleActive]} 
-              onPress={() => setRole('FARMER')}
-            >
-              <Text style={[styles.roleText, role === 'FARMER' && styles.roleTextActive]}>Farmer</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.roleButton, role === 'ADMIN' && styles.roleActive]} 
-              onPress={() => setRole('ADMIN')}
-            >
-              <Text style={[styles.roleText, role === 'ADMIN' && styles.roleTextActive]}>Admin</Text>
-            </TouchableOpacity>
-          </View>
-
-          {role === 'ADMIN' && (
-            <View style={styles.inputContainer}>
-              <MaterialCommunityIcons name="shield-lock-outline" size={24} color={COLORS.primary} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Admin Passcode"
-                placeholderTextColor={COLORS.outline}
-                value={adminCode}
-                onChangeText={setAdminCode}
-                secureTextEntry
-              />
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Already have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+                <Text style={styles.loginLink}>Login</Text>
+              </TouchableOpacity>
             </View>
-          )}
-
-          <TouchableOpacity 
-            style={styles.signupButton} 
-            onPress={handleSignUp}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={COLORS.onPrimary} />
-            ) : (
-              <Text style={styles.signupButtonText}>Sign Up</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Already have account? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-            <Text style={styles.loginLink}>Login</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      </ScrollView>
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollContainer: {
-    flexGrow: 1,
-    backgroundColor: COLORS.background,
-  },
-  glowTopRight: {
-    position: 'absolute',
-    top: -100,
-    right: -100,
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    backgroundColor: 'rgba(76, 175, 80, 0.15)',
-    transform: [{ scale: 1.5 }],
-  },
-  glowBottomLeft: {
-    position: 'absolute',
-    bottom: -100,
-    left: -100,
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-  },
   container: {
     flex: 1,
-    padding: 24,
+    backgroundColor: COLORS.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
     justifyContent: 'center',
-    paddingTop: 80,
+  },
+  glowTop: {
+    position: 'absolute',
+    top: -150,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(76, 175, 80, 0.12)',
+    zIndex: -1,
+  },
+  innerContainer: {
+    marginTop: 40,
   },
   header: {
     alignItems: 'center',
     marginBottom: 32,
   },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: 'rgba(120, 220, 119, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(76, 175, 80, 0.3)',
+    marginBottom: 20,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 10,
   },
-  headline: {
+  title: {
     ...TYPOGRAPHY.headlineLG,
-    color: '#FFF',
+    color: '#FFFFFF',
+    fontSize: 32,
+    fontWeight: '700',
+  },
+  subtitle: {
+    ...TYPOGRAPHY.bodyMD,
+    color: COLORS.onSurfaceVariant,
+    marginTop: 4,
+    opacity: 0.8,
   },
   card: {
-    backgroundColor: '#0F2040',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#1B5E20',
+    backgroundColor: 'rgba(15, 32, 64, 0.7)',
+    borderRadius: 24,
     padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 5,
   },
-  inputContainer: {
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.outlineVariant,
-    borderRadius: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 16,
     paddingHorizontal: 16,
-    height: 56,
+    height: 58,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   inputIcon: {
     marginRight: 12,
@@ -257,56 +376,65 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     ...TYPOGRAPHY.bodyLG,
-    color: COLORS.onSurface,
+    color: '#FFFFFF',
+    fontSize: 16,
   },
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  halfInput: {
-    width: '48%',
+    marginBottom: 0,
   },
   roleContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 32,
+    marginVertical: 12,
+    gap: 12,
   },
-  roleButton: {
-    width: '48%',
+  roleBtn: {
+    flex: 1,
     height: 48,
-    borderWidth: 2,
-    borderColor: COLORS.outlineVariant,
-    borderRadius: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
   },
-  roleActive: {
+  roleBtnActive: {
     backgroundColor: COLORS.primaryContainer,
-    borderColor: COLORS.primaryContainer,
+    borderColor: COLORS.primary,
   },
-  roleText: {
+  roleBtnText: {
     ...TYPOGRAPHY.labelLG,
     color: COLORS.onSurfaceVariant,
   },
-  roleTextActive: {
-    color: COLORS.onPrimary,
+  roleBtnTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
-  signupButton: {
-    height: 56,
+  submitBtn: {
+    height: 60,
     backgroundColor: COLORS.primaryContainer,
-    borderRadius: 28,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 20,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
   },
-  signupButtonText: {
+  submitBtnText: {
     ...TYPOGRAPHY.button,
-    color: COLORS.onPrimary,
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 32,
-    paddingBottom: 40,
   },
   footerText: {
     ...TYPOGRAPHY.bodyMD,
@@ -315,6 +443,6 @@ const styles = StyleSheet.create({
   loginLink: {
     ...TYPOGRAPHY.bodyMD,
     color: COLORS.primary,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
 });

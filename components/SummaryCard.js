@@ -23,8 +23,8 @@ export default function SummaryCard({ title, value, icon, color, subtitle, delay
     // Subtle glow pulse on the icon
     Animated.loop(
       Animated.sequence([
-        Animated.timing(glowAnim, { toValue: 1, duration: 2000, useNativeDriver: true }),
-        Animated.timing(glowAnim, { toValue: 0, duration: 2000, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 1, duration: 2500, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 0, duration: 2500, useNativeDriver: true }),
       ])
     ).start();
   }, []);
@@ -32,7 +32,11 @@ export default function SummaryCard({ title, value, icon, color, subtitle, delay
   return (
     <Animated.View style={[styles.card, { transform: [{ scale: scaleAnim }], opacity: opacityAnim }]}>
       <View style={styles.header}>
-        <Animated.View style={[styles.iconBg, { backgroundColor: `${color}15`, opacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }]}>
+        <Animated.View style={[styles.iconBg, { 
+          backgroundColor: `${color}20`, 
+          opacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }),
+          transform: [{ scale: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.1] }) }]
+        }]}>
           <MaterialCommunityIcons name={icon} size={22} color={color} />
         </Animated.View>
       </View>
@@ -47,23 +51,30 @@ export default function SummaryCard({ title, value, icon, color, subtitle, delay
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: COLORS.surfaceContainer,
-    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(27, 94, 32, 0.4)',
-    padding: 14,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    padding: 16,
     flex: 1,
-    minHeight: 120,
+    minHeight: 130,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 2,
   },
   header: {
-    marginBottom: 10,
+    marginBottom: 12,
   },
   iconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   content: {
     flex: 1,
@@ -71,18 +82,22 @@ const styles = StyleSheet.create({
   },
   value: {
     ...TYPOGRAPHY.headlineMD,
-    fontSize: 22,
-    marginBottom: 4,
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 2,
   },
   title: {
     ...TYPOGRAPHY.labelLG,
-    fontSize: 12,
-    color: COLORS.onSurface,
+    fontSize: 11,
+    color: COLORS.onSurfaceVariant,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
   subtitle: {
     ...TYPOGRAPHY.bodyMD,
-    fontSize: 11,
+    fontSize: 10,
     color: COLORS.onSurfaceVariant,
     marginTop: 2,
+    opacity: 0.7,
   },
 });

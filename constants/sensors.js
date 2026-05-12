@@ -31,3 +31,14 @@ export const GRID_ROWS = 5;
 export const GRID_COLS = 4;
 
 export const ZONES = Object.values(SENSORS).map(s => s.zone);
+
+/**
+ * Threat proximity ring (meters) per severity tier.
+ * Same severity field drives threat coloring on FarmMap / SensorDot; alert detail uses these for ~Xm (not amplitude).
+ */
+export const THREAT_RADIUS_METERS_BY_SEVERITY = {
+  LOW: 59,
+  MEDIUM: 33,
+  HIGH: 23,
+  CRITICAL: 11,
+};

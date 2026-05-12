@@ -1,4 +1,4 @@
-package com.eleguard.app
+package com.kavishka.eleguard
 
 import android.app.Application
 import android.content.res.Configuration

@@ -2,13 +2,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Animated, Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { signOut } from 'firebase/auth';
+import { signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { ref, update } from 'firebase/database';
 import { auth, db } from '../firebase/config';
 import { COLORS } from '../constants/colors';
 import { TYPOGRAPHY } from '../constants/typography';
 import Header from '../components/Header';
 import { useAuth } from '../hooks/useAuth';
+import { sendPasswordResetNotification } from '../services/emailService';
 
 const AnimatedMenuItem = ({ icon, label, onPress, delay = 0, danger = false }) => {
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -49,6 +50,9 @@ export default function ProfileScreen({ navigation }) {
   const [isEditModalVisible, setEditModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
   const [updating, setUpdating] = useState(false);
+
+  const name = userData?.name || 'User';
+  const email = user?.email || userData?.email || '';
 
   const avatarScale = useRef(new Animated.Value(0)).current;
   const heroOpacity = useRef(new Animated.Value(0)).current;
@@ -122,6 +126,10 @@ export default function ProfileScreen({ navigation }) {
           onPress: async () => {
             try {
               await sendPasswordResetEmail(auth, email);
+              
+              // Send custom confirmation via EmailJS (using the proven fetch method)
+              sendPasswordResetNotification(email, name);
+
               Alert.alert('Email Sent', 'Please check your inbox. You will now be logged out.');
               signOut(auth);
             } catch (error) {
@@ -133,8 +141,7 @@ export default function ProfileScreen({ navigation }) {
     );
   };
 
-  const name = userData?.name || 'User';
-  const email = userData?.email || '';
+  // name and email are declared at the top of the component
 
   const rotate = rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['-5deg', '5deg'] });
 
@@ -146,7 +153,7 @@ export default function ProfileScreen({ navigation }) {
         {/* Hero Section */}
         <Animated.View style={[styles.heroSection, { opacity: heroOpacity, transform: [{ translateY: floatAnim }] }]}>
           <Animated.View style={[styles.avatarCircle, { transform: [{ scale: avatarScale }] }]}>
-            <Text style={styles.avatarInitials}>{name.charAt(0).toUpperCase()}</Text>
+            <MaterialCommunityIcons name="account" size={54} color={COLORS.onPrimary} />
           </Animated.View>
           <View style={styles.nameRow}>
             <Text style={styles.name}>{name}</Text>

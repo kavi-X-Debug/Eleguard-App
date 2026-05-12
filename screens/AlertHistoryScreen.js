@@ -7,6 +7,10 @@ import { TYPOGRAPHY } from '../constants/typography';
 import Header from '../components/Header';
 import AlertCard from '../components/AlertCard';
 import { useFirebaseSensors } from '../hooks/useFirebaseSensors';
+import { SENSORS } from '../constants/sensors';
+
+/** Stable S1–S14 order from `constants/sensors.js` insertion order. */
+const SENSOR_IDS = Object.keys(SENSORS);
 
 const FILTERS = ['All', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'FALSE ALARM'];
 
@@ -20,7 +24,7 @@ const FILTER_COLORS = {
 };
 
 export default function AlertHistoryScreen({ navigation }) {
-  const { sensors, loading } = useFirebaseSensors();
+  const { sensors } = useFirebaseSensors();
   const [activeFilter, setActiveFilter] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -43,30 +47,73 @@ export default function AlertHistoryScreen({ navigation }) {
     setTimeout(() => setRefreshing(false), 1000);
   };
 
-  const getFilteredAlerts = () => {
-    // Only show sensors that have at least one valid timestamp (indicating they've had an event)
-    // Filter out "SAFE" type alerts from history as requested
-    let history = Object.values(sensors)
-      .filter(s => s.timestamp && s.severity?.toString().trim().toUpperCase() !== 'SAFE') 
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-    if (activeFilter === 'FALSE ALARM') {
-      return history.filter(s => s.falseAlarm === true || s.falseAlarm === "true");
-    }
-    
-    if (activeFilter !== 'All') {
-      return history.filter(s => {
-        const sev = s.severity?.toString().trim().toUpperCase();
-        const filter = activeFilter.trim().toUpperCase();
-        const isFalseAlarm = s.falseAlarm === true || s.falseAlarm === "true";
-        return sev === filter && !isFalseAlarm;
-      });
-    }
-    
-    return history;
+  const enrichLatest = (sensorId) => {
+    const raw = sensors[sensorId];
+    if (!raw) return null;
+    return {
+      ...raw,
+      sensorId: raw.sensorId || sensorId,
+      zone: raw.zone || SENSORS[sensorId]?.zone || `Zone-${sensorId}`,
+    };
   };
 
-  const alerts = getFilteredAlerts();
+  /** RTDB stores one current row per sensor — that row is the latest “event” for history UI. */
+  const isFalseAlarmFlag = (a) => a.falseAlarm === true || a.falseAlarm === 'true';
+
+  const isNonSafeAlertCard = (a) => {
+    if (!a?.timestamp) return false;
+    const sev = a.severity?.toString().trim().toUpperCase();
+    return sev && sev !== 'SAFE';
+  };
+
+  const numericSensorId = (id) => {
+    const m = /^S(\d+)$/i.exec(id || '');
+    return m ? parseInt(m[1], 10) : 999;
+  };
+
+  const getFilteredRows = () => {
+    const perSensor = SENSOR_IDS.map((sensorId) => {
+      const alert = enrichLatest(sensorId);
+      return { sensorId, alert };
+    });
+
+    if (activeFilter === 'FALSE ALARM') {
+      return perSensor
+        .filter(({ alert }) => alert?.timestamp && isFalseAlarmFlag(alert))
+        .map(({ sensorId, alert }) => ({ sensorId, alert, showCard: true }))
+        .sort((a, b) => new Date(b.alert.timestamp) - new Date(a.alert.timestamp));
+    }
+
+    if (activeFilter !== 'All') {
+      const filter = activeFilter.trim().toUpperCase();
+      return perSensor
+        .filter(({ alert }) => {
+          if (!isNonSafeAlertCard(alert)) return false;
+          const sev = alert.severity?.toString().trim().toUpperCase();
+          return sev === filter && !isFalseAlarmFlag(alert);
+        })
+        .map(({ sensorId, alert }) => ({ sensorId, alert, showCard: true }))
+        .sort((a, b) => new Date(b.alert.timestamp) - new Date(a.alert.timestamp));
+    }
+
+    // "All": one row per sensor (14) — card for latest non-SAFE signal, placeholder otherwise
+    const rows = perSensor.map(({ sensorId, alert }) => ({
+      sensorId,
+      alert,
+      showCard: isNonSafeAlertCard(alert),
+    }));
+    rows.sort((a, b) => {
+      if (a.showCard && b.showCard) {
+        return new Date(b.alert.timestamp) - new Date(a.alert.timestamp);
+      }
+      if (a.showCard && !b.showCard) return -1;
+      if (!a.showCard && b.showCard) return 1;
+      return numericSensorId(a.sensorId) - numericSensorId(b.sensorId);
+    });
+    return rows;
+  };
+
+  const rows = getFilteredRows();
 
   return (
     <View style={styles.container}>
@@ -80,7 +127,7 @@ export default function AlertHistoryScreen({ navigation }) {
         <View style={styles.titleRow}>
           <Text style={styles.pageTitle}>Alert History</Text>
           <View style={styles.countPill}>
-            <Text style={styles.countText}>{alerts.length}</Text>
+            <Text style={styles.countText}>{rows.length}</Text>
           </View>
         </View>
         <Text style={styles.syncText}>📡 Synced with Firebase · Real-time</Text>
@@ -116,21 +163,33 @@ export default function AlertHistoryScreen({ navigation }) {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} />
           }
         >
-          {alerts.length === 0 ? (
+          {rows.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyEmoji}>📋</Text>
               <Text style={styles.emptyTitle}>No Alerts Found</Text>
               <Text style={styles.emptySubtext}>No events match the selected filter.</Text>
             </View>
           ) : (
-            alerts.map((alert, index) => (
-              <AlertCard
-                key={alert.sensorId + (alert.timestamp || index)}
-                alert={alert}
-                index={index}
-                onPress={() => navigation.navigate('AlertDetail', { alert })}
-              />
-            ))
+            rows.map((row, index) =>
+              row.showCard ? (
+                <AlertCard
+                  key={row.sensorId}
+                  alert={row.alert}
+                  index={index}
+                  onPress={() => navigation.navigate('AlertDetail', { alert: row.alert })}
+                />
+              ) : (
+                <View key={row.sensorId} style={styles.sensorPlaceholder}>
+                  <MaterialCommunityIcons name="radar" size={20} color={COLORS.onSurfaceVariant} />
+                  <View style={styles.placeholderTextWrap}>
+                    <Text style={styles.placeholderTitle}>
+                      {SENSORS[row.sensorId]?.zone} · {row.sensorId}
+                    </Text>
+                    <Text style={styles.placeholderSub}>No recent alert · latest per sensor</Text>
+                  </View>
+                </View>
+              )
+            )
           )}
         </ScrollView>
       </Animated.View>
@@ -234,5 +293,30 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.bodyMD,
     fontSize: 14,
     color: COLORS.onSurfaceVariant,
+  },
+  sensorPlaceholder: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.surfaceContainer,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceContainerHigh,
+  },
+  placeholderTextWrap: {
+    flex: 1,
+  },
+  placeholderTitle: {
+    ...TYPOGRAPHY.headlineMD,
+    fontSize: 16,
+    color: COLORS.onSurface,
+  },
+  placeholderSub: {
+    ...TYPOGRAPHY.bodyMD,
+    fontSize: 12,
+    color: COLORS.onSurfaceVariant,
+    marginTop: 2,
   },
 });

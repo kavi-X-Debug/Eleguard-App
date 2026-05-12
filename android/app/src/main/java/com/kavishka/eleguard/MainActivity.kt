@@ -1,4 +1,4 @@
-package com.eleguard.app
+package com.kavishka.eleguard
 
 import android.os.Build
 import android.os.Bundle

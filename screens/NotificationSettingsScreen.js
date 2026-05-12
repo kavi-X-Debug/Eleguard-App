@@ -15,7 +15,6 @@ export default function NotificationSettingsScreen({ navigation }) {
     HIGH: { sound: "Critical Alarm", overrideDND: true, wakeScreen: true, repeat: true },
     MEDIUM: { sound: "Classic Alarm", overrideDND: true, wakeScreen: false, repeat: true },
     LOW: { sound: "Warning Buzzer", overrideDND: false, wakeScreen: false, repeat: true },
-    quietHours: { enabled: false, overrideHigh: true }
   });
   const [expanded, setExpanded] = useState('HIGH');
   const [isSoundModalVisible, setIsSoundModalVisible] = useState(false);
@@ -29,7 +28,9 @@ export default function NotificationSettingsScreen({ navigation }) {
     try {
       const stored = await AsyncStorage.getItem('notif_prefs');
       if (stored) {
-        setPrefs(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        const { quietHours: _quietHours, ...rest } = parsed;
+        setPrefs(rest);
       }
     } catch (e) {
       console.error(e);
@@ -66,16 +67,6 @@ export default function NotificationSettingsScreen({ navigation }) {
     // Play preview
     AudioService.playAlarm(soundName, false);
     setIsSoundModalVisible(false);
-  };
-
-  const toggleQuietHour = (key) => {
-    setPrefs(prev => ({
-      ...prev,
-      quietHours: {
-        ...prev.quietHours,
-        [key]: !prev.quietHours[key]
-      }
-    }));
   };
 
   const playTestSound = async (level) => {
@@ -169,26 +160,6 @@ export default function NotificationSettingsScreen({ navigation }) {
         {renderSection('HIGH', COLORS.severity_HIGH, 'alert-circle')}
         {renderSection('MEDIUM', COLORS.severity_MEDIUM, 'alert-circle')}
         {renderSection('LOW', COLORS.severity_LOW, 'alert-circle-outline')}
-
-        <View style={styles.quietHoursSection}>
-          <Text style={styles.sectionTitle}>Quiet Hours</Text>
-          <View style={styles.toggleRow}>
-            <Text style={styles.rowLabel}>Enable Quiet Hours</Text>
-            <Switch 
-              value={prefs.quietHours?.enabled || false} 
-              onValueChange={() => toggleQuietHour('enabled')}
-              trackColor={{ false: COLORS.surfaceContainerHigh, true: COLORS.primary }} 
-            />
-          </View>
-          <View style={styles.toggleRow}>
-            <Text style={styles.rowLabel}>Override for HIGH</Text>
-            <Switch 
-              value={prefs.quietHours?.overrideHigh || false} 
-              onValueChange={() => toggleQuietHour('overrideHigh')}
-              trackColor={{ false: COLORS.surfaceContainerHigh, true: COLORS.primary }} 
-            />
-          </View>
-        </View>
 
         <TouchableOpacity style={styles.saveBtn} onPress={savePrefs}>
           <Text style={styles.saveBtnText}>SAVE PREFERENCES</Text>
@@ -353,16 +324,8 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.bodyLG,
     color: COLORS.onSurface,
   },
-  quietHoursSection: {
-    marginTop: 16,
-    marginBottom: 32,
-    backgroundColor: COLORS.surfaceContainer,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.surfaceContainerHigh,
-  },
   saveBtn: {
+    marginTop: 16,
     backgroundColor: COLORS.primaryContainer,
     height: 56,
     borderRadius: 28,

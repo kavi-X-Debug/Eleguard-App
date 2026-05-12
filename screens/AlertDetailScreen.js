@@ -1,5 +1,5 @@
 // FILE: screens/AlertDetailScreen.js
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Alert } from 'react-native';
 import { COLORS } from '../constants/colors';
 import { TYPOGRAPHY } from '../constants/typography';
@@ -9,9 +9,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ref, update } from 'firebase/database';
 import { db } from '../firebase/config';
 import AudioService from '../services/AudioService';
+import { getSensorAlertDisplayMetrics } from '../utils/sensorAlertMetrics';
 
 export default function AlertDetailScreen({ route, navigation }) {
   const { alert } = route.params;
+  const metrics = useMemo(() => getSensorAlertDisplayMetrics(alert), [alert]);
 
   // Animations
   const heroSlide = useRef(new Animated.Value(-40)).current;
@@ -131,12 +133,20 @@ export default function AlertDetailScreen({ route, navigation }) {
           {/* Metric Grid */}
           <View style={styles.metricGrid}>
             {[
-              { label: 'STRENGTH', value: `${alert.amplitude?.toFixed(1) || '0.0'} v/s`, icon: 'waveform', color },
-              { label: 'PROXIMITY', value: '~12m', icon: 'map-marker-distance', color: COLORS.severity_MEDIUM },
-              { label: 'CONFIDENCE', value: '92%', icon: 'check-circle', color: COLORS.primary },
+              { label: 'AMPLITUDE', value: metrics.amplitudeLine, icon: 'chart-line', color },
+              { label: 'STRENGTH', value: metrics.strengthLine, icon: 'waveform', color },
+              { label: 'PROXIMITY', value: metrics.proximityLine, icon: 'map-marker-distance', color: COLORS.severity_MEDIUM },
+              { label: 'CONFIDENCE', value: metrics.confidenceLine, icon: 'check-circle', color: COLORS.primary },
               { label: 'STATUS', value: alert.falseAlarm ? 'FALSE' : 'ACTIVE', icon: 'elephant', color: alert.falseAlarm ? COLORS.outline : color },
             ].map((m, i) => (
-              <View key={i} style={[styles.metricCard, { borderColor: `${m.color}30` }]}>
+              <View
+                key={i}
+                style={[
+                  styles.metricCard,
+                  { borderColor: `${m.color}30` },
+                  i === 4 ? { width: '100%' } : { width: '47%' },
+                ]}
+              >
                 <MaterialCommunityIcons name={m.icon} size={18} color={m.color} style={{ marginBottom: 6 }} />
                 <Text style={[styles.metricValue, { color: m.color }]}>{m.value}</Text>
                 <Text style={styles.metricLabel}>{m.label}</Text>
@@ -304,7 +314,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   metricCard: {
-    width: '47%',
     backgroundColor: COLORS.surfaceContainer,
     padding: 14,
     borderRadius: 14,

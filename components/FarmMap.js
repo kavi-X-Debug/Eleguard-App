@@ -16,6 +16,11 @@ const isFarmCenter = (row, col) => row >= 1 && row <= 3 && col >= 1 && col <= 2;
 
 const CELL_SIZE = 75;
 const CELL_MARGIN = 6;
+// One grid slot: cell + horizontal margins (absolute overlay math assumes rows start at x=0).
+const CELL_STRIDE = CELL_SIZE + CELL_MARGIN * 2;
+const ROW_WIDTH = GRID_COLS * CELL_STRIDE;
+// Farm block spans rows 1–3; each row uses marginVertical on wrappers.
+const FARM_BLOCK_HEIGHT = 3 * CELL_SIZE + 6 * CELL_MARGIN;
 
 export default function FarmMap({ sensorsData }) {
   const renderGrid = () => {
@@ -53,14 +58,16 @@ export default function FarmMap({ sensorsData }) {
       }
 
       rows.push(
-        <View key={`row-${r}`} style={styles.row}>
+        <View
+          key={`row-${r}`}
+          style={[styles.row, r === GRID_ROWS - 1 && styles.bottomSensorRow]}
+        >
           {cols}
           
           {/* Render the farm center block overlay on row 1 */}
           {r === 1 && (
             <View style={styles.farmCenterContainer}>
               <View style={styles.farmCenter}>
-                <Text style={styles.farmEmoji}>🌾</Text>
                 <Text style={styles.farmText}>Cultivation</Text>
                 <Text style={styles.farmText}>Area</Text>
               </View>
@@ -99,10 +106,17 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    marginVertical: CELL_MARGIN,
+    alignSelf: 'center',
+    width: ROW_WIDTH,
+    marginTop: CELL_MARGIN,
+    marginBottom: CELL_MARGIN,
     position: 'relative',
+  },
+  bottomSensorRow: {
+    // Extra gap so row 4 clears the cultivation overlay (matches breathing room vs top).
+    marginTop: CELL_MARGIN * 2,
   },
   cellWrapper: {
     width: CELL_SIZE,
@@ -113,10 +127,10 @@ const styles = StyleSheet.create({
   },
   farmCenterContainer: {
     position: 'absolute',
-    left: CELL_SIZE + CELL_MARGIN * 2, // skip first col + margins
+    left: CELL_STRIDE, // skip column 0 (S14 / left edge)
     width: CELL_SIZE * 2 + CELL_MARGIN * 4,
     top: 0,
-    height: CELL_SIZE * 3 + CELL_MARGIN * 4, // 3 rows + gaps
+    height: FARM_BLOCK_HEIGHT,
     zIndex: 1,
   },
   farmCenter: {

@@ -14,11 +14,11 @@ import AlertDetailScreen from '../screens/AlertDetailScreen';
 
 const Stack = createStackNavigator();
 
-export default function AppNavigator() {
+export default function AppNavigator({ navigationRef }) {
   const { user, loading } = useAuth();
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Splash" component={SplashScreen} />
         {user ? (

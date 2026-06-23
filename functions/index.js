@@ -88,6 +88,20 @@ exports.onSensorSignalFcm = functions.database
     const after = change.after.val()
     const before = change.before.val()
 
+    // 1. MASTER LOCK: Check global autoDefense status FIRST (MUST BE AT THE TOP)
+    const autoDefenseSnap = await db.ref('defense_system/autoDefense').once('value')
+    const isAutoDefenseEnabled = autoDefenseSnap.val() === true
+    
+    if (!isAutoDefenseEnabled) {
+      // FIX 2: Reset this sensor's counters so they don't accumulate while disabled
+      await db.ref(`defending_system/alert_counters/${sensorId}`).update({
+        highSeverityCount: 0,
+        lowSeverityCount: 0,
+        autoTriggered: false
+      })
+      return null
+    }
+
     if (!shouldAlert(after)) {
       return null
     }
@@ -96,27 +110,194 @@ exports.onSensorSignalFcm = functions.database
     }
 
     const zone = after.zone || `Zone-${sensorId}`
-    const title = `EleGuard — ${zone}`
-    const body = `${after.severity} · Sensor ${sensorId} · Amplitude ${after.amplitude ?? '—'}`
+    const severity = (after.severity || '').toString().toUpperCase()
+    const timestamp = new Date().toISOString()
+    
+    // --- SERVER-SIDE DEFENSE LOGIC ---
+    const isSafe = severity === 'SAFE'
+    const isTrigger = after.isActive && !after.falseAlarm && !isSafe
+    
+    const counterRef = db.ref(`defending_system/alert_counters/${sensorId}`)
+    const updates = {}
 
-    const entries = await getAllFcmTokens()
-    if (!entries.length) {
-      functions.logger.info('No FCM tokens registered under users/*/fcmToken')
-      return null
-    }
+    if (isSafe) {
+      // RESET LOGIC ON SAFE
+      updates[`defending_system/alert_counters/${sensorId}/highSeverityCount`] = 0
+      updates[`defending_system/alert_counters/${sensorId}/lowSeverityCount`] = 0
+      updates[`defending_system/alert_counters/${sensorId}/autoTriggered`] = false
+      
+      // Deactivate hardware
+      updates[`defending_system/sensors/${sensorId}/buzzer/isActive`] = false
+      updates[`defending_system/sensors/${sensorId}/impulseWave/isActive`] = false
+      updates[`defense_system/sensor_controls/${sensorId}/buzzer`] = false
+      updates[`defense_system/sensor_controls/${sensorId}/impulse`] = false
+      
+      // Write DEACTIVATED log
+      const logRef = db.ref('defending_system/logs').push()
+      updates[`defending_system/logs/${logRef.key}`] = {
+        action: "DEACTIVATED",
+        deviceType: "BUZZER+IMPULSE_WAVE",
+        intensity: "NONE",
+        reason: "SAFE signal received",
+        sensorId: sensorId,
+        severity: severity,
+        timestamp: timestamp,
+        triggerType: "AUTO",
+        triggeredBy: "auto"
+      }
 
-    try {
-      const result = await sendFcmToTokens(entries, {
-        title,
-        body,
-        sensorId,
-        zone,
-        severity: after.severity,
+      // Check if any other sensors are still active to update global status
+      const allCountersSnap = await db.ref('defending_system/alert_counters').once('value')
+      let anyOtherActive = false
+      allCountersSnap.forEach((child) => {
+        if (child.key !== sensorId && child.val().autoTriggered === true) {
+          anyOtherActive = true
+        }
       })
-      functions.logger.info('FCM batch', { sensorId, ...result })
-    } catch (e) {
-      functions.logger.error('FCM send failed', e)
+      if (!anyOtherActive) {
+        updates[`defense_system/status`] = "STANDBY"
+      }
+    } else if (isTrigger) {
+      const counterSnap = await counterRef.once('value')
+      const counters = counterSnap.val() || { highSeverityCount: 0, lowSeverityCount: 0, autoTriggered: false }
+      
+      // FIX 3: lastProcessedKey guard to prevent reprocessing old/duplicate signals
+      const lastKey = counters.lastProcessedKey || ''
+      const currentKey = after.timestamp || ''
+      if (lastKey === currentKey && lastKey !== '') {
+        functions.logger.info('Duplicate signal detected. Skipping.', { sensorId, currentKey })
+        return null
+      }
+      updates[`defending_system/alert_counters/${sensorId}/lastProcessedKey`] = currentKey
+
+      if (!counters.autoTriggered) {
+        const isHigh = severity === 'HIGH' || severity === 'CRITICAL'
+        const isLow = severity === 'LOW' || severity === 'MEDIUM'
+
+        let newHigh = counters.highSeverityCount || 0
+        let newLow = counters.lowSeverityCount || 0
+
+        if (isHigh) {
+          newHigh += 1
+          newLow = 0 // CONSECUTIVE RULE: Reset low if high received
+        } else if (isLow) {
+          newLow += 1
+          newHigh = 0 // CONSECUTIVE RULE: Reset high if low received
+        }
+
+        const highThreshold = 5
+        const lowThreshold = 10
+        const shouldTrigger = newHigh >= highThreshold || newLow >= lowThreshold
+
+        updates[`defending_system/alert_counters/${sensorId}/highSeverityCount`] = newHigh
+        updates[`defending_system/alert_counters/${sensorId}/lowSeverityCount`] = newLow
+
+        if (shouldTrigger) {
+          updates[`defending_system/alert_counters/${sensorId}/autoTriggered`] = true
+          
+          const deterrentState = {
+            isActive: true,
+            activatedAt: timestamp,
+            triggerType: 'AUTO_STREAK',
+            triggeredBy: 'system',
+            intensity: isHigh ? 'HIGH' : 'MED',
+            durationSeconds: 60
+          }
+          
+          updates[`defending_system/sensors/${sensorId}/buzzer`] = deterrentState
+          updates[`defending_system/sensors/${sensorId}/impulseWave`] = deterrentState
+          updates[`defense_system/sensor_controls/${sensorId}/buzzer`] = true
+          updates[`defense_system/sensor_controls/${sensorId}/impulse`] = true
+          updates[`defense_system/status`] = "ACTIVE"
+
+          // Write ACTIVATED log
+          const logRef = db.ref('defending_system/logs').push()
+          updates[`defending_system/logs/${logRef.key}`] = {
+            action: "ACTIVATED",
+            deviceType: "BUZZER+IMPULSE_WAVE",
+            intensity: isHigh ? "HIGH" : "MED",
+            reason: `Threshold reached: ${isHigh ? newHigh : newLow} consecutive alerts`,
+            sensorId: sensorId,
+            severity: severity,
+            timestamp: timestamp,
+            triggerType: "AUTO",
+            triggeredBy: "auto"
+          }
+        }
+      }
     }
 
+    if (Object.keys(updates).length > 0) {
+      await db.ref().update(updates)
+    }
+
+    // --- NOTIFICATION LOGIC ---
+    const entries = await getAllFcmTokens()
+    if (entries.length > 0) {
+      const title = `EleGuard — ${zone}`
+      const body = `${severity} · Sensor ${sensorId} · Amplitude ${after.amplitude ?? '—'}`
+      
+      try {
+        await sendFcmToTokens(entries, {
+          title,
+          body,
+          sensorId,
+          zone,
+          severity: severity,
+        })
+      } catch (e) {
+        functions.logger.error('FCM send failed', e)
+      }
+    }
+
+    return null
+  })
+
+/**
+ * GLOBAL AUTO-RESET: Triggered when the master switch is toggled.
+ * If disabled, we aggressively reset ALL state across the database.
+ */
+exports.onAutoDefenseToggle = functions.database
+  .ref('/defense_system/autoDefense')
+  .onWrite(async (change, context) => {
+    const isEnabled = change.after.val()
+    
+    // If turning OFF (false) or if the node was deleted (null)
+    if (isEnabled === false || isEnabled === null) {
+      functions.logger.info('Auto Defense DISABLED. Performing global reset...')
+      
+      // FIX 1: Read sensor IDs from alert_counters and use hardcoded fallback
+      const countersSnap = await db.ref('defending_system/alert_counters').once('value')
+      const counters = countersSnap.val() || {}
+      const existingSensorIds = Object.keys(counters)
+      
+      const knownSensors = ['S1','S2','S3','S4','S5','S6','S7','S8','S9','S10','S11','S12','S13','S14']
+      const allSensorIds = [...new Set([...existingSensorIds, ...knownSensors])]
+      
+      const resets = {}
+      
+      // 1. Reset Global Status
+      resets['defense_system/status'] = 'STANDBY'
+      
+      // 2. Reset every sensor counter and control
+      allSensorIds.forEach(id => {
+        // Reset Counters
+        resets[`defending_system/alert_counters/${id}/highSeverityCount`] = 0
+        resets[`defending_system/alert_counters/${id}/lowSeverityCount`] = 0
+        resets[`defending_system/alert_counters/${id}/autoTriggered`] = false
+        resets[`defending_system/alert_counters/${id}/lastProcessedKey`] = ''
+        
+        // Reset Controls
+        resets[`defense_system/sensor_controls/${id}/buzzer`] = false
+        resets[`defense_system/sensor_controls/${id}/impulse`] = false
+        
+        // Reset Hardware State (optional check if node exists)
+        resets[`defending_system/sensors/${id}/buzzer/isActive`] = false
+        resets[`defending_system/sensors/${id}/impulseWave/isActive`] = false
+      })
+      
+      await db.ref().update(resets)
+    }
+    
     return null
   })

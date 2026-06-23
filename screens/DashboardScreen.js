@@ -20,7 +20,7 @@ import { SENSORS } from '../constants/sensors';
 import { useFirebaseSensors } from '../hooks/useFirebaseSensors';
 import { useAuth } from '../hooks/useAuth';
 
-import { ref, onValue, off } from 'firebase/database';
+import { ref, onValue } from 'firebase/database';
 import { db } from '../firebase/config';
 
 const { width } = Dimensions.get('window');
@@ -61,12 +61,12 @@ export default function DashboardScreen({ navigation }) {
       ])
     ).start();
 
-    // Signal bars animation
+    // Signal bars animation (cannot use native driver for height animation)
     Animated.loop(
       Animated.timing(signalAnim, {
         toValue: 1,
         duration: 2000,
-        useNativeDriver: true,
+        useNativeDriver: false,
       })
     ).start();
   }, []);

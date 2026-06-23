@@ -17,7 +17,6 @@ import FarmMap from '../components/FarmMap';
 import { useFirebaseSensors } from '../hooks/useFirebaseSensors';
 
 export default function HeatmapScreen({ navigation }) {
-  const [mode, setMode] = useState('LIVE');
   const { sensors, loading } = useFirebaseSensors();
   
   // Animations
@@ -91,23 +90,7 @@ export default function HeatmapScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Mode Toggle */}
-        <View style={styles.toggleWrapper}>
-          <View style={styles.toggleBg}>
-            <TouchableOpacity 
-              style={[styles.toggleBtn, mode === 'LIVE' && styles.toggleBtnActive]}
-              onPress={() => setMode('LIVE')}
-            >
-              <Text style={[styles.toggleText, mode === 'LIVE' && styles.toggleTextActive]}>LIVE</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.toggleBtn, mode === 'HISTORY' && styles.toggleBtnActive]}
-              onPress={() => setMode('HISTORY')}
-            >
-              <Text style={[styles.toggleText, mode === 'HISTORY' && styles.toggleTextActive]}>HISTORY</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+
 
         {/* Risk Level Meter */}
         <View style={styles.riskMeterContainer}>
@@ -126,29 +109,24 @@ export default function HeatmapScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Map Container with Radar Overlay */}
         <View style={styles.mapContainer}>
           <FarmMap sensorsData={sensors} />
           
-          {mode === 'LIVE' && (
-            <>
-              {[radarAnim1, radarAnim2, radarAnim3].map((anim, i) => (
-                <Animated.View 
-                  key={i}
-                  style={[styles.radarOverlay, {
-                    transform: [{ scale: anim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.5, 2.5]
-                    }) }],
-                    opacity: anim.interpolate({
-                      inputRange: [0, 0.4, 1],
-                      outputRange: [0, 0.3, 0]
-                    }),
-                  }]} 
-                />
-              ))}
-            </>
-          )}
+          {[radarAnim1, radarAnim2, radarAnim3].map((anim, i) => (
+            <Animated.View 
+              key={i}
+              style={[styles.radarOverlay, {
+                transform: [{ scale: anim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.5, 2.5]
+                }) }],
+                opacity: anim.interpolate({
+                  inputRange: [0, 0.4, 1],
+                  outputRange: [0, 0.3, 0]
+                }),
+              }]} 
+            />
+          ))}
         </View>
 
         {/* Dynamic Legend */}
@@ -221,40 +199,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  toggleWrapper: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  toggleBg: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-    padding: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  toggleBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  toggleBtnActive: {
-    backgroundColor: COLORS.primaryContainer,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  toggleText: {
-    ...TYPOGRAPHY.labelLG,
-    color: COLORS.onSurfaceVariant,
-    fontWeight: '700',
-  },
-  toggleTextActive: {
-    color: '#FFF',
-  },
+
   riskMeterContainer: {
     paddingHorizontal: 24,
     marginBottom: 32,

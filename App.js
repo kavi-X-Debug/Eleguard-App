@@ -19,7 +19,7 @@ import { COLORS } from './constants/colors';
 import { useNotifications } from './hooks/useNotifications';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import PermissionGuard from './components/PermissionGuard';
-import { activateKeepAwake } from 'expo-keep-awake';
+import { activateKeepAwakeAsync } from 'expo-keep-awake';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { createNavigationContainerRef } from '@react-navigation/native';
@@ -51,7 +51,7 @@ export default function App() {
   });
 
   useEffect(() => {
-    activateKeepAwake();
+    activateKeepAwakeAsync();
 
     // Task 3: Create Android notification channel
     const createChannel = async () => {

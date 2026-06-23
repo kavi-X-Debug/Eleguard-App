@@ -1,9 +1,8 @@
-// FILE: hooks/useNotifications.js
-import { useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ref, onValue, off, update } from 'firebase/database';
+import { ref, onValue, off, update, get, serverTimestamp } from 'firebase/database';
 import { db } from '../firebase/config';
 import { SENSORS } from '../constants/sensors';
 
@@ -43,6 +42,7 @@ import AudioService from '../services/AudioService';
 export const useNotifications = () => {
   const { user } = useAuth();
   const isFirstRun = useRef(true);
+  const seenAlerts = useRef(new Set());
 
   useEffect(() => {
     const setupNotifications = async () => {
@@ -91,10 +91,9 @@ export const useNotifications = () => {
   }, [user]);
 
   useEffect(() => {
-    if (!user || !user.emailVerified) return;
-
-    const seenAlerts = new Set();
-    const signalsRef = ref(db, 'iot_signals');
+     if (!user || !user.emailVerified) return;
+ 
+     const signalsRef = ref(db, 'iot_signals');
     
     const sendElephantAlert = async (sensor) => {
       try {
@@ -138,28 +137,55 @@ export const useNotifications = () => {
     };
 
     const unsubscribe = onValue(signalsRef, async (snapshot) => {
-      const sensors = snapshot.val() || {};
+      // 1. MASTER LOCK: Fetch Global Defense System Parameters FIRST
+      const defenseSnap = await get(ref(db, 'defense_system'));
+      const defenseData = defenseSnap.val() || {};
       
-      // Check if this is the absolute first time the app is running data after installation
+      const isAuth1_Enabled = defenseData.autoDefense === true;
+      const isAuth2_Mode = defenseData.autoDefenseMode === 'AUTO';
+      const isAuth3_Admin = defenseData.autoDefenseEnabledByAdmin === true;
+
+      // COMPLETELY SILENT IF DISABLED: Hard exit before any other logic
+      if (!isAuth1_Enabled) {
+        AudioService.stopAlarm();
+        return;
+      }
+
+      const signals = snapshot.val() || {};
       const firstLaunchFlag = await AsyncStorage.getItem('first_launch_complete');
       const isInitialSync = isFirstRun.current && !firstLaunchFlag;
 
-      for (const [id, sensor] of Object.entries(sensors)) {
-        const alertKey = `${id}_${sensor.timestamp}`;
-        
-        // If it's the initial sync after installation, we mark everything as seen but don't alert
-        if (isInitialSync) {
-          seenAlerts.add(sensor.timestamp);
-          continue;
-        }
+      // TRIPLE AUTHENTICATION: All three requirements must be satisfied for any further logic
+      const isSystemFullyAuthorized = isAuth1_Enabled && isAuth2_Mode && isAuth3_Admin;
+      const lastToggleTime = defenseData.lastDefenseToggle ? new Date(defenseData.lastDefenseToggle).getTime() : 0;
 
-        // Normal alerting logic
-        if (sensor.isActive && !sensor.falseAlarm && !seenAlerts.has(sensor.timestamp) && sensor.severity !== 'SAFE') {
-          seenAlerts.add(sensor.timestamp);
-          await sendElephantAlert({
-            ...sensor,
-            zone: SENSORS[id]?.zone || `Zone-${id}`
-          });
+      for (const [id, sensor] of Object.entries(signals)) {
+        const severity = (sensor.severity || '').toString().toUpperCase();
+        const isSafe = severity === 'SAFE';
+        const isTrigger = sensor.isActive && !sensor.falseAlarm && !isSafe;
+        
+        // --- EXTREME FRESHNESS CHECK ---
+        const alertTime = sensor.timestamp ? new Date(sensor.timestamp).getTime() : 0;
+        const nowTime = Date.now();
+        const isWithinWindow = (nowTime - alertTime) < 60000; 
+        const isAfterToggle = alertTime > lastToggleTime;
+        const isFreshAlert = isWithinWindow && isAfterToggle;
+
+        // --- 1. HANDLE ALARMS & NOTIFICATIONS ---
+        if (isTrigger && !seenAlerts.current.has(sensor.timestamp)) {
+          seenAlerts.current.add(sensor.timestamp);
+          
+          // Trigger local feedback only if system is authorized and alert is fresh
+          if (isSystemFullyAuthorized && isFreshAlert && !isInitialSync) {
+            AudioService.playAlarm();
+            sendElephantAlert({
+              ...sensor,
+              zone: SENSORS[id]?.zone || `Zone-${id}`
+            });
+          }
+        } else if (isSafe || isInitialSync) {
+          seenAlerts.current.add(sensor.timestamp);
+          AudioService.stopAlarm();
         }
       }
 
@@ -176,7 +202,7 @@ export const useNotifications = () => {
 
     return () => {
       off(signalsRef);
-      AudioService.stopAlarm();
-    };
-  }, [user]);
-};
+       AudioService.stopAlarm();
+     };
+   }, [user]);
+ };
